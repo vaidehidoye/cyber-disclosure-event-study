@@ -274,11 +274,16 @@ def main() -> None:
     robust = robustness(events, main_sample, returns, factors, ar)
     placebo = placebo_distribution(main_sample, returns, PLACEBO_DRAWS)
     actual = car_main["car"].mean()
-    robust.loc["Placebo: random dates (mean of draws)", ["n", "mean_car"]] = [len(car_main), placebo.mean()]
-    robust.loc["Placebo: random dates (mean of draws)", "p_t"] = (np.abs(placebo) >= abs(actual)).mean()
+    placebo_note = (
+        f"\nPlacebo: replacing each firm's disclosure date with a random non-event date ({PLACEBO_DRAWS} draws) "
+        f"gives a mean CAR[0,+1] of {100 * placebo.mean():.2f}% (5th-95th percentile: "
+        f"{100 * np.percentile(placebo, 5):.2f}% to {100 * np.percentile(placebo, 95):.2f}%). "
+        f"{(placebo <= actual).sum()} of {PLACEBO_DRAWS} draws are as negative as the actual {100 * actual:.2f}%.\n"
+    )
     to_markdown(robust, RESULTS_DIR / "robustness.md")
-    print("\nRobustness (CAR[0,+1])\n", robust.round(4).to_string())
-    print(f"Placebo: {(placebo <= actual).mean():.3f} of {PLACEBO_DRAWS} random-date samples are as negative as the actual mean")
+    with open(RESULTS_DIR / "robustness.md", "a") as f:
+        f.write(placebo_note)
+    print("\nRobustness (CAR[0,+1])\n", robust.round(4).to_string(), placebo_note)
 
     validation = llm_validation(data)
     if validation is not None:
