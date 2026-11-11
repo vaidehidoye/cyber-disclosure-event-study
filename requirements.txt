@@ -10,3 +10,4 @@ matplotlib>=3.8
 pytest>=8.0
 python-dotenv>=1.0
 pysentiment2>=0.1
+tabulate>=0.9
