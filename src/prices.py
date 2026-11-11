@@ -9,16 +9,19 @@ import yfinance as yf
 
 EVENTS_PATH = "data/processed/events.csv"
 RETURNS_PATH = "data/processed/returns.parquet"
+DOLLAR_VOLUME_PATH = "data/processed/dollar_volume.parquet"
 FACTORS_PATH = "data/processed/ff_factors.parquet"
 
 MARKET_TICKER = "SPY"  # S&P 500 ETF, adjusted for dividends
 HISTORY_DAYS = 450  # calendar days before the first event: covers a 250-trading-day estimation window
 
 
-def download_returns(tickers: list[str], start: pd.Timestamp) -> pd.DataFrame:
-    """Daily simple returns from dividend- and split-adjusted closing prices."""
-    prices = yf.download(tickers, start=start, auto_adjust=True, progress=False)["Close"]
-    return prices.pct_change(fill_method=None).iloc[1:]
+def download_prices(tickers: list[str], start: pd.Timestamp) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Daily simple returns (from adjusted closes) and dollar trading volume."""
+    data = yf.download(tickers, start=start, auto_adjust=True, progress=False)
+    returns = data["Close"].pct_change(fill_method=None).iloc[1:]
+    dollar_volume = (data["Close"] * data["Volume"]).iloc[1:]
+    return returns, dollar_volume
 
 
 def download_ff_factors(start: pd.Timestamp) -> pd.DataFrame:
@@ -34,10 +37,11 @@ def main() -> None:
     tickers = sorted(events["ticker"].dropna().unique())
     start = events["file_date"].min() - pd.Timedelta(days=HISTORY_DAYS)
 
-    returns = download_returns(tickers + [MARKET_TICKER], start)
+    returns, dollar_volume = download_prices(tickers + [MARKET_TICKER], start)
     missing = [t for t in tickers if t not in returns or returns[t].count() == 0]
     returns = returns.drop(columns=missing, errors="ignore")
     returns.to_parquet(RETURNS_PATH)
+    dollar_volume[returns.columns].to_parquet(DOLLAR_VOLUME_PATH)
     print(f"Saved returns for {returns.shape[1] - 1} firms ({returns.index.min():%Y-%m-%d} to {returns.index.max():%Y-%m-%d})")
     print(f"No price data: {missing}")
 
